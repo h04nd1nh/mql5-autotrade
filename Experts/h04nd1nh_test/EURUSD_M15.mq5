@@ -30,6 +30,7 @@ bool isOpenBuy = false;
 bool isOpenSell = false;
 bool isOpenBuyDCA = false;
 bool isOpenSellDCA = false;
+string lastCloseReason = "TP";
    
 
 //+------------------------------------------------------------------+
@@ -83,15 +84,16 @@ void OnTick()
       double ask = SymbolInfoDouble(_Symbol,SYMBOL_ASK);   // Ask price (buy open)
       double bid = SymbolInfoDouble(_Symbol,SYMBOL_BID);   // Bid price (sell open
       double pipSize = SymbolInfoDouble(_Symbol, SYMBOL_POINT); //  Calculate pip size
+      int spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
       
-      bool buyFirstOpenCondition = (checkTrend() == "UP_TREND" && ask <= BBLow[0]);
-      bool sellFirstOpenCondition = (checkTrend() == "DOWN_TREND" && ask >= BBUp[0]);
+      bool buyFirstOpenCondition = (spread <=10 && checkTrend() == "UP_TREND" && bid <= BBLow[0] + 10*pipSize && (lastCloseReason == "TP" || bid >= ema50[0]));
+      bool sellFirstOpenCondition = (spread <=10 && checkTrend() == "DOWN_TREND" && bid >= BBUp[0] - 10*pipSize && (lastCloseReason == "TP" || bid <= ema50[0]));
       double lastOrderAskTemp = lastOrderAsk;
       double lastOrderBidTemp = lastOrderBid;
-      bool buySecondOpenCondition = (isOpenBuy && !isOpenBuyDCA && ask <= (lastOrderAskTemp - 150*pipSize));
-      bool sellSecondOpenCondition = (isOpenSell && !isOpenSellDCA && ask >= (lastOrderAskTemp + 150*pipSize));
-      bool buyStoplossBE = (isOpenBuy && ask >= (lastOrderAskTemp + 60*pipSize));
-      bool sellStoplossBE = (isOpenSell && ask <= (lastOrderAskTemp - 60*pipSize));
+      bool buySecondOpenCondition = (spread <=10 && isOpenBuy && !isOpenBuyDCA && bid <= (lastOrderAskTemp - 150*pipSize));
+      bool sellSecondOpenCondition = (spread <=10 && isOpenSell && !isOpenSellDCA && bid >= (lastOrderBidTemp + 150*pipSize));
+      bool buyStoplossBE = (isOpenBuy && bid >= (lastOrderAskTemp + 60*pipSize));
+      bool sellStoplossBE = (isOpenSell && bid <= (lastOrderBidTemp - 60*pipSize));
       
       if (buyFirstOpenCondition) {
          LongPositionOpen();
@@ -118,8 +120,8 @@ void OnTick()
       
       if (sellStoplossBE) {
          int digits = (int)SymbolInfoInteger(_Symbol,SYMBOL_DIGITS);
-         double sl = lastOrderAskTemp - 25*pipSize;
-         double tp = lastOrderAskTemp - 100*pipSize;
+         double sl = lastOrderBidTemp - 25*pipSize;
+         double tp = lastOrderBidTemp - 100*pipSize;
          trade.PositionModify(PositionGetTicket(0),NormalizeDouble(lastOrderAskTemp - 25*pipSize,digits),NormalizeDouble(lastOrderAskTemp - 100*pipSize,digits));
       }
   }
@@ -170,9 +172,18 @@ bool CheckIfPositionClosed(ulong ticket, long type)
    for (int i = 1; i < HistoryDealsTotal(); i++)
       {
          closedVolume += HistoryDealGetDouble(HistoryDealGetTicket(i), DEAL_VOLUME);
+         ulong deal_ticket = HistoryDealGetTicket(i);
+         int reason = (int)HistoryDealGetInteger(deal_ticket, DEAL_REASON);
+         if (reason == DEAL_REASON_SL) {
+            lastCloseReason = "SL";
+         }
+         if (reason == DEAL_REASON_TP) {
+            lastCloseReason = "TP";
+         }
       }
    return closedVolume == HistoryDealGetDouble(HistoryDealGetTicket(0), DEAL_VOLUME);
 }
+
 
 
 //+------------------------------------------------------------------+
@@ -194,8 +205,8 @@ void LongPositionOpen()
       lastOrderBid = bid;    // Bid price
       int digits = (int)SymbolInfoInteger(_Symbol,SYMBOL_DIGITS);
       double pipSize = SymbolInfoDouble(_Symbol, SYMBOL_POINT); //  Calculate pip size
-      double stopLoss = ask - 300 * pipSize;
-      double takeProfit = ask + 100 * pipSize;
+      double stopLoss = bid - 300 * pipSize;
+      double takeProfit = bid + 100 * pipSize;
    
       mrequest.action = TRADE_ACTION_DEAL;               // Immediate order execution
       mrequest.price = NormalizeDouble(lastOrderAsk,digits);      // Lastest Ask price
@@ -240,7 +251,7 @@ void ShortPositionOpen()
       double stopLoss = ask + 300 * pipSize;
       double takeProfit = ask - 100 * pipSize;
       mrequest.action = TRADE_ACTION_DEAL;               // Immediate order execution
-      mrequest.price = NormalizeDouble(lastOrderAsk,digits);     // Lastest Bid price
+      mrequest.price = NormalizeDouble(lastOrderBid,digits);     // Lastest Bid price
       mrequest.sl = NormalizeDouble(stopLoss,digits);                                    // Stop Loss
       mrequest.tp = NormalizeDouble(takeProfit,digits);                                    // Take Profit
       mrequest.symbol = _Symbol;                         // Symbol
@@ -272,8 +283,8 @@ void ShortPositionOpen()
    double bid = SymbolInfoDouble(_Symbol,SYMBOL_BID);    // Bid price
    int digits = (int)SymbolInfoInteger(_Symbol,SYMBOL_DIGITS);
    double pipSize = SymbolInfoDouble(_Symbol, SYMBOL_POINT); //  Calculate pip size
-   double stopLoss = ask - 150 * pipSize;
-   double takeProfit = ask + 150 * pipSize;
+   double stopLoss = bid - 150 * pipSize;
+   double takeProfit = bid + 100 * pipSize;
 
   
      
@@ -308,12 +319,12 @@ void ShortPositionOpen()
    int digits = (int)SymbolInfoInteger(_Symbol,SYMBOL_DIGITS);
    double pipSize = SymbolInfoDouble(_Symbol, SYMBOL_POINT); //  Calculate pip size
    double stopLoss = ask + 150 * pipSize;
-   double takeProfit = ask - 150 * pipSize;
+   double takeProfit = ask - 100 * pipSize;
 
       
       // Order new position
       mrequest.action = TRADE_ACTION_DEAL;               // Immediate order execution
-      mrequest.price = NormalizeDouble(ask,digits);      // Lastest Ask price
+      mrequest.price = NormalizeDouble(bid,digits);      // Lastest Ask price
       mrequest.sl = NormalizeDouble(stopLoss,digits);                                   // Stop Loss
       mrequest.tp = NormalizeDouble(takeProfit,digits);                                    // Take Profit
       mrequest.symbol = _Symbol;                     // Symbol
