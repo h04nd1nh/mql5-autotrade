@@ -95,7 +95,7 @@ void OnTick()
       bool buyStoplossBE = (isOpenBuy && bid >= (lastOrderAskTemp + 60*pipSize));
       bool sellStoplossBE = (isOpenSell && bid <= (lastOrderBidTemp - 60*pipSize));
       
-      if (buyFirstOpenCondition) {
+      if (buyFirstOpenCondition)  {
          LongPositionOpen();
       }
       
